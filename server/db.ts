@@ -1,4 +1,4 @@
-import { and, desc, eq, gt } from "drizzle-orm";
+import { and, desc, eq, gt, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { alertThresholds, gatewayConfigs, gatewayLogs, gatewayMetrics, securityRules, users, webhookDeliveries, type InsertUser } from "../drizzle/schema";
 import { ENV } from "./_core/env";
@@ -131,6 +131,41 @@ export async function getWebhookDelivery(updateId: number) {
   if (!db) return undefined;
   const rows = await db.select().from(webhookDeliveries).where(eq(webhookDeliveries.updateId, updateId)).limit(1);
   return rows[0];
+}
+
+export async function transitionWebhookDelivery(updateId: number, status: "received" | "processing" | "processed" | "retryable" | "duplicate" | "rejected" | "failed" | "dead_letter", details: { errorMessage?: string | null; nextAttemptAt?: Date | null; processingStartedAt?: Date | null; processedAt?: Date | null; incrementAttempt?: boolean } = {}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const patch: Record<string, unknown> = { status };
+  if (details.errorMessage !== undefined) patch.errorMessage = details.errorMessage;
+  if (details.nextAttemptAt !== undefined) patch.nextAttemptAt = details.nextAttemptAt;
+  if (details.processingStartedAt !== undefined) patch.processingStartedAt = details.processingStartedAt;
+  if (details.processedAt !== undefined) patch.processedAt = details.processedAt;
+  if (details.incrementAttempt) patch.attemptCount = sql`${webhookDeliveries.attemptCount} + 1`;
+  await db.update(webhookDeliveries).set(patch).where(eq(webhookDeliveries.updateId, updateId));
+  return getWebhookDelivery(updateId);
+}
+
+export async function replayWebhookDelivery(updateId: number) {
+  return transitionWebhookDelivery(updateId, "received", { errorMessage: null, nextAttemptAt: new Date(), processingStartedAt: null, processedAt: null });
+}
+
+export async function getWebhookDeliveryDiagnostics(limit = 50) {
+  const deliveries = await getWebhookDeliveries(limit);
+  return deliveries.map(delivery => ({
+    id: delivery.id,
+    updateId: delivery.updateId,
+    receivedAt: delivery.receivedAt,
+    status: delivery.status,
+    attemptCount: delivery.attemptCount,
+    lastAttemptAt: delivery.lastAttemptAt,
+    processingStartedAt: delivery.processingStartedAt,
+    processedAt: delivery.processedAt,
+    nextAttemptAt: delivery.nextAttemptAt,
+    errorMessage: delivery.errorMessage,
+    payloadKeys: Object.keys(delivery.payload ?? {}),
+    payloadSize: JSON.stringify(delivery.payload ?? {}).length,
+  }));
 }
 
 export async function hasRecentLog(message: string) {

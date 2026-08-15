@@ -22,18 +22,18 @@
 - [x] Add unit tests for webhook authentication, update acceptance, duplicate update handling, and diagnostics.
 - [x] Add route-level tests for valid Telegram webhook acceptance, invalid-secret rejection, missing update_id, and duplicate delivery handling.
 - [x] Add tests for webhook diagnostics procedures or delivery-inspection persistence helpers.
-- [ ] Add explicit webhook delivery lifecycle states, attempt counters, and lifecycle timestamps to persistent storage.
-- [ ] Add owner-only replay-safe recovery controls for failed webhook deliveries.
-- [ ] Add webhook delivery detail diagnostics with redacted payload metadata and upstream error context.
-- [ ] Add webhook drift and delivery-health checks using Telegram webhook status fields.
-- [ ] Add tests for lifecycle transitions, replay idempotency, and delivery-health diagnostics.
+- [x] Add explicit webhook delivery lifecycle states, attempt counters, and lifecycle timestamps to persistent storage.
+- [x] Add owner-only replay-safe recovery controls for failed webhook deliveries.
+- [x] Add webhook delivery detail diagnostics with redacted payload metadata and upstream error context.
+- [x] Add webhook drift and delivery-health checks using Telegram webhook status fields.
+- [x] Add tests for lifecycle transitions, replay idempotency, and delivery-health diagnostics.
 - [x] Verify Bright Data timeout, retry, rate-limit, and proxy-session guidance for adaptive routing.
 - [x] Add explicit proxy timeout classification and bounded retry/backoff configuration.
 - [x] Add upstream rate-limit handling with Retry-After support, jitter, and circuit-breaker behavior.
 - [x] Add secure fallback routing, evidence-preserving logs, and no-fabricated-success rules to the configuration.
-- [ ] Use Bright Data to discover candidate Telegram gateway repositories relevant to Hermes webhook routing.
-- [ ] Inspect candidate GitHub repositories for license, maintenance, webhook, retry, and security fit.
-- [ ] Map the verified candidate integration path to Hermes Agent without executing untrusted repository code.
+- [x] Use Bright Data to discover candidate Telegram gateway repositories relevant to Hermes webhook routing.
+- [x] Inspect candidate GitHub repositories for license, maintenance, webhook, retry, and security fit.
+- [x] Map the verified candidate integration path to Hermes Agent without executing untrusted repository code.
 - [x] Verify provided Telegram and Bright Data credentials are present through secure environment configuration without revealing values.
 - [x] Validate server-only credential usage, redaction, and missing-secret behavior with tests.
 - [x] Add missing/invalid Bright Data environment tests without exposing command-line credentials.
@@ -47,3 +47,6 @@
 - [x] Add router-level tests for setWebhook using the managed webhook secret fallback and omitting the secret when none is configured.
 - [x] Add actual hermes.webhook.register mutation tests asserting outgoing setWebhook secret fallback and omission behavior.
 - [x] Wire the managed OpenAI key into a server-only Hermes connectivity procedure and validate it against the models endpoint.
+- [x] Add owner-facing replay controls to the Hermes webhook diagnostics UI.
+- [x] Surface redacted webhook delivery diagnostics and persisted error context in the UI.
+- [x] Add end-to-end mocked tests for replay mutation and webhook health procedure output.

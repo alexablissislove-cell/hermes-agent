@@ -49,7 +49,59 @@ function Monitor({ data, loading }: { data?: any; loading: boolean }) { if (load
 
 function TestConsole() { const send = trpc.hermes.test.send.useMutation(); const [chatId, setChatId] = useState(""); const [text, setText] = useState("Hermes Agent test message"); const [parseMode, setParseMode] = useState<"plain" | "markdown" | "html">("plain"); const [result, setResult] = useState<any>(); return <div className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]"><SectionCard title="Compose test message" subtitle="The request is sent server-side through the configured bot token."><div className="space-y-5"><Field label="Chat ID"><Input value={chatId} onChange={e => setChatId(e.target.value)} placeholder="-1001234567890" /></Field><Field label="Message"><Textarea value={text} onChange={e => setText(e.target.value)} className="min-h-36" /></Field><div><Label className="text-xs text-muted-foreground">Parse mode</Label><div className="mt-2 flex gap-2">{(["plain", "markdown", "html"] as const).map(mode => <Button key={mode} variant={parseMode === mode ? "default" : "outline"} size="sm" onClick={() => setParseMode(mode)}>{mode}</Button>)}</div></div><Button className="w-full" disabled={send.isPending || !chatId || !text} onClick={async () => setResult(await send.mutateAsync({ chatId, text, parseMode }))}><Send className="mr-2 h-4 w-4" />{send.isPending ? "Sending…" : "Send through gateway"}</Button></div></SectionCard><SectionCard title="Raw exchange" subtitle="Inspectable request and response payloads"><div className="rounded-lg border border-border/60 bg-[#071018] p-4 font-mono text-xs leading-6 text-slate-300"><pre className="whitespace-pre-wrap">{result ? JSON.stringify(result, null, 2) : "// Run a test to inspect the raw exchange."}</pre></div>{result && <div className={`mt-4 flex items-center gap-2 text-xs ${result.ok ? "text-emerald-300" : "text-amber-300"}`}>{result.ok ? <CheckCircle2 className="h-4 w-4" /> : <AlertTriangle className="h-4 w-4" />}{result.ok ? "Telegram accepted the request." : "The gateway returned a non-success response."}</div>}</SectionCard></div>; }
 
-function Troubleshoot() { const run = trpc.hermes.troubleshoot.run.useMutation(); const logs = trpc.hermes.troubleshoot.logs.useQuery(); return <div className="space-y-6"><div className="grid gap-4 sm:grid-cols-3"><DiagnosticCard icon={Network} title="Connection diagnostics" detail="Validate gateway reachability and runtime configuration." /><DiagnosticCard icon={ExternalLink} title="Webhook verification" detail="Inspect endpoint configuration and signing readiness." /><DiagnosticCard icon={Stethoscope} title="Health-check runner" detail="Run a persisted control-plane health check." action={<Button size="sm" onClick={() => run.mutate()} disabled={run.isPending}>{run.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}Run checks</Button>} /></div>{run.data && <SectionCard title="Latest diagnostic run" subtitle={new Date(run.data.checkedAt).toLocaleString()}><div className="grid gap-3 md:grid-cols-3">{run.data.checks.map((check: any) => <div key={check.name} className="rounded-lg border border-border/60 bg-background/40 p-4"><div className="flex items-center gap-2 text-sm font-medium">{check.status === "pass" ? <CheckCircle2 className="h-4 w-4 text-emerald-300" /> : <AlertTriangle className="h-4 w-4 text-amber-300" />}{check.name}</div><p className="mt-2 text-xs leading-5 text-muted-foreground">{check.detail}</p></div>)}</div></SectionCard>}<SectionCard title="Recent errors" subtitle="Persisted gateway events, newest first"><div className="rounded-lg border border-border/60 bg-[#071018] p-4 font-mono text-xs">{logs.data?.length ? logs.data.filter((log: any) => log.level === "error" || log.level === "warn").map((log: any) => <div key={log.id} className="flex gap-3 border-b border-white/5 py-2 last:border-0"><span className="text-slate-500">{new Date(log.createdAt).toLocaleTimeString()}</span><span className={log.level === "error" ? "text-rose-300" : "text-amber-300"}>{log.message}</span></div>) : <div className="py-8 text-center text-slate-500">No recent warnings or errors.</div>}</div></SectionCard></div>; }
+function Troubleshoot() {
+  const run = trpc.hermes.troubleshoot.run.useMutation();
+  const logs = trpc.hermes.troubleshoot.logs.useQuery();
+  const health = trpc.hermes.webhook.health.useMutation();
+  const deliveries = trpc.hermes.webhook.diagnostics.useQuery();
+  const replay = trpc.hermes.webhook.replay.useMutation({ onSuccess: () => deliveries.refetch() });
+
+  return (
+    <div className="space-y-6">
+      <div className="grid gap-4 sm:grid-cols-3">
+        <DiagnosticCard icon={Network} title="Connection diagnostics" detail="Validate gateway reachability and runtime configuration." />
+        <DiagnosticCard icon={ExternalLink} title="Webhook verification" detail="Inspect endpoint configuration and signing readiness." action={<Button size="sm" variant="outline" onClick={() => health.mutate()} disabled={health.isPending}>{health.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}Webhook health</Button>} />
+        <DiagnosticCard icon={Stethoscope} title="Health-check runner" detail="Run a persisted control-plane health check." action={<Button size="sm" onClick={() => run.mutate()} disabled={run.isPending}>{run.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}Run checks</Button>} />
+      </div>
+
+      {run.data && <SectionCard title="Latest diagnostic run" subtitle={new Date(run.data.checkedAt).toLocaleString()}>
+        <div className="grid gap-3 md:grid-cols-3">
+          {run.data.checks.map((check: any) => <div key={check.name} className="rounded-lg border border-border/60 bg-background/40 p-4">
+            <div className="flex items-center gap-2 text-sm font-medium">{check.status === "pass" ? <CheckCircle2 className="h-4 w-4 text-emerald-300" /> : <AlertTriangle className="h-4 w-4 text-amber-300" />}{check.name}</div>
+            <p className="mt-2 text-xs leading-5 text-muted-foreground">{check.detail}</p>
+          </div>)}
+        </div>
+      </SectionCard>}
+
+      {health.data && <SectionCard title="Telegram webhook health" subtitle={new Date(health.data.checkedAt).toLocaleString()}>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {health.data.checks.map((check: any) => <div key={check.name} className="rounded-lg border border-border/60 bg-background/40 p-3">
+            <div className="flex items-center gap-2 text-xs font-medium">{check.status === "pass" ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-300" /> : <AlertTriangle className="h-3.5 w-3.5 text-amber-300" />}{check.name}</div>
+            <p className="mt-2 text-[11px] leading-5 text-muted-foreground">{check.detail}</p>
+          </div>)}
+        </div>
+      </SectionCard>}
+
+      <SectionCard title="Webhook delivery diagnostics" subtitle="Payload content is redacted to keys and size; replay is owner-gated.">
+        <div className="space-y-2">
+          {deliveries.data?.length ? deliveries.data.map((delivery: any) => <div key={delivery.id} className="flex flex-col gap-3 rounded-lg border border-border/60 bg-background/40 p-3 text-xs sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2"><span className="font-mono text-slate-300">update {delivery.updateId}</span><Badge variant="outline" className="text-[10px]">{delivery.status}</Badge><span className="text-muted-foreground">attempt {delivery.attemptCount}</span></div>
+              <p className="mt-1 truncate text-muted-foreground">keys: {(delivery.payloadKeys ?? []).join(", ") || "none"} · {delivery.payloadSize} bytes{delivery.errorMessage ? " · " + delivery.errorMessage : ""}</p>
+            </div>
+            {["failed", "retryable", "dead_letter"].includes(delivery.status) && <Button size="sm" variant="outline" disabled={replay.isPending} onClick={() => replay.mutate({ updateId: delivery.updateId })}>Replay</Button>}
+          </div>) : <div className="py-8 text-center text-slate-500">No persisted webhook deliveries.</div>}
+        </div>
+      </SectionCard>
+
+      <SectionCard title="Recent errors" subtitle="Persisted gateway events, newest first">
+        <div className="rounded-lg border border-border/60 bg-[#071018] p-4 font-mono text-xs">
+          {logs.data?.length ? logs.data.filter((log: any) => log.level === "error" || log.level === "warn").map((log: any) => <div key={log.id} className="flex gap-3 border-b border-white/5 py-2 last:border-0"><span className="text-slate-500">{new Date(log.createdAt).toLocaleTimeString()}</span><span className={log.level === "error" ? "text-rose-300" : "text-amber-300"}>{log.message}</span></div>) : <div className="py-8 text-center text-slate-500">No recent warnings or errors.</div>}
+        </div>
+      </SectionCard>
+    </div>
+  );
+}
 
 function DiagnosticCard({ icon: Icon, title, detail, action }: { icon: React.ElementType; title: string; detail: string; action?: React.ReactNode }) { return <Card className="border-border/70 bg-card/80 shadow-none"><CardContent className="p-4"><div className="flex items-start justify-between"><div className="grid h-9 w-9 place-items-center rounded-lg bg-primary/10 text-primary"><Icon className="h-4 w-4" /></div>{action}</div><p className="mt-4 text-sm font-medium">{title}</p><p className="mt-1 text-xs leading-5 text-muted-foreground">{detail}</p></CardContent></Card>; }
 function SectionCard({ title, subtitle, children }: { title: string; subtitle: string; children: React.ReactNode }) { return <Card className="border-border/70 bg-card/80 shadow-none"><CardHeader><CardTitle className="text-base">{title}</CardTitle><p className="text-xs text-muted-foreground">{subtitle}</p></CardHeader><CardContent>{children}</CardContent></Card>; }

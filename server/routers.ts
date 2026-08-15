@@ -6,7 +6,8 @@ import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import { TRPCError } from "@trpc/server";
 import { ENV } from "./_core/env";
 import { verifyOpenAIConnection } from "./openai";
-import { appendGatewayLog, getAlertThresholds, getGatewayConfig, getLatestMetrics, getRecentLogs, getSecurityRules, getWebhookDeliveries, saveAlertThresholds, saveGatewayConfig, saveSecurityRules } from "./db";
+import { formatTelegramText } from "./telegramFormatting";
+import { appendGatewayLog, getAlertThresholds, getGatewayConfig, getLatestMetrics, getRecentLogs, getSecurityRules, getWebhookDeliveries, getWebhookDeliveryDiagnostics, replayWebhookDelivery, saveAlertThresholds, saveGatewayConfig, saveSecurityRules } from "./db";
 
 const gatewayInput = z.object({
   botToken: z.string().max(512).nullable(),
@@ -93,7 +94,7 @@ export const appRouter = router({
     test: router({
       send: ownerProcedure.input(z.object({ chatId: z.string().min(1), text: z.string().min(1).max(4096), parseMode: z.enum(["plain", "markdown", "html"]) })).mutation(async ({ input }) => {
         const config = await getGatewayConfig();
-        const payload = { chat_id: input.chatId, text: input.text, ...(input.parseMode === "plain" ? {} : { parse_mode: input.parseMode === "markdown" ? "MarkdownV2" : "HTML" }) };
+        const payload = { chat_id: input.chatId, text: formatTelegramText(input.text, input.parseMode), ...(input.parseMode === "plain" ? {} : { parse_mode: input.parseMode === "markdown" ? "MarkdownV2" : "HTML" }) };
         const botToken = resolveTelegramBotToken(config);
         if (!botToken) {
           return { ok: false, status: 412, request: payload, response: { ok: false, description: "Configure a bot token before sending a live message." } };
@@ -112,6 +113,12 @@ export const appRouter = router({
     }),
     webhook: router({
       deliveries: ownerProcedure.query(async () => getWebhookDeliveries(50)),
+      diagnostics: ownerProcedure.query(async () => getWebhookDeliveryDiagnostics(50)),
+      replay: ownerProcedure.input(z.object({ updateId: z.number().int().nonnegative() })).mutation(async ({ input }) => {
+        const delivery = await replayWebhookDelivery(input.updateId);
+        await appendGatewayLog({ level: "info", message: "Webhook delivery queued for replay", context: { updateId: input.updateId } });
+        return delivery;
+      }),
       register: ownerProcedure.mutation(async () => {
         const config = await getGatewayConfig();
         const botToken = resolveTelegramBotToken(config);
@@ -128,6 +135,25 @@ export const appRouter = router({
         const response = await fetch(`https://api.telegram.org/bot${botToken}/getWebhookInfo`);
         const body = await response.json().catch(() => ({ ok: false, description: "Non-JSON response" }));
         return { status: response.status, ...body };
+      }),
+      health: ownerProcedure.mutation(async () => {
+        const config = await getGatewayConfig();
+        const botToken = resolveTelegramBotToken(config);
+        if (!botToken) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Configure the bot token first." });
+        const response = await fetch(`https://api.telegram.org/bot${botToken}/getWebhookInfo`);
+        const body = await response.json().catch(() => ({ ok: false }));
+        const webhookInfo = body?.result;
+        return {
+          checkedAt: new Date(),
+          ok: response.ok && body?.ok === true,
+          status: response.status,
+          checks: [
+            { name: "Telegram API", status: response.ok && body?.ok === true ? "pass" : "fail", detail: body?.description || "Telegram responded." },
+            { name: "Webhook URL", status: config?.webhookUrl && webhookInfo?.url === config.webhookUrl ? "pass" : "warn", detail: webhookInfo?.url ? `Telegram URL: ${webhookInfo.url}` : "Telegram has no registered webhook URL." },
+            { name: "Pending updates", status: Number(webhookInfo?.pending_update_count ?? 0) > 0 ? "warn" : "pass", detail: `${Number(webhookInfo?.pending_update_count ?? 0)} pending update(s).` },
+            { name: "Last error", status: webhookInfo?.last_error_message ? "warn" : "pass", detail: webhookInfo?.last_error_message || "No Telegram webhook error reported." },
+          ],
+        };
       }),
     }),
     openai: router({

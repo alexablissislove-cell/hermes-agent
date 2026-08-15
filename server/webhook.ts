@@ -18,6 +18,25 @@ export function isDuplicateUpdate(existingUpdateIds: number[], updateId: number)
   return existingUpdateIds.includes(updateId);
 }
 
+export function lifecycleAfterAttempt(success: boolean, attemptCount: number, maxAttempts: number) {
+  if (success) return "processed" as const;
+  return attemptCount >= maxAttempts ? "dead_letter" as const : "retryable" as const;
+}
+
+export function webhookPayloadMetadata(payload: unknown) {
+  const record = payload && typeof payload === "object" ? payload as Record<string, unknown> : {};
+  return { payloadKeys: Object.keys(record), payloadSize: JSON.stringify(record).length };
+}
+
+export function webhookHealthSummary(info: { url?: string; pending_update_count?: number; last_error_message?: string }, expectedUrl?: string | null) {
+  const pending = Number(info.pending_update_count ?? 0);
+  return {
+    urlMatches: Boolean(expectedUrl && info.url === expectedUrl),
+    pendingUpdates: pending,
+    hasLastError: Boolean(info.last_error_message),
+  };
+}
+
 export function registerTelegramWebhook(app: Express) {
   app.post("/api/webhooks/telegram", async (req: Request, res: Response) => {
     const config = await getGatewayConfig();

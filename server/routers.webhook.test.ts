@@ -8,6 +8,8 @@ const dbMocks = vi.hoisted(() => ({
   getRecentLogs: vi.fn(),
   getSecurityRules: vi.fn(),
   getWebhookDeliveries: vi.fn(),
+  getWebhookDeliveryDiagnostics: vi.fn().mockResolvedValue([]),
+  replayWebhookDelivery: vi.fn(),
   saveAlertThresholds: vi.fn(),
   saveGatewayConfig: vi.fn(),
   saveSecurityRules: vi.fn(),
@@ -61,6 +63,21 @@ describe("hermes.webhook.register", () => {
     } finally {
       ENV.telegramWebhookSecret = previous;
     }
+  });
+
+  it("replays a failed delivery through the owner-only mutation", async () => {
+    dbMocks.replayWebhookDelivery.mockResolvedValue({ updateId: 44, status: "received" });
+    const result = await appRouter.createCaller(createContext()).hermes.webhook.replay({ updateId: 44 });
+    expect(result).toMatchObject({ updateId: 44, status: "received" });
+    expect(dbMocks.replayWebhookDelivery).toHaveBeenCalledWith(44);
+  });
+
+  it("returns health checks from the Telegram getWebhookInfo response", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({ ok: true, result: { url: "https://example.test/api/webhooks/telegram", pending_update_count: 0 } }), { status: 200 }));
+    const result = await appRouter.createCaller(createContext()).hermes.webhook.health();
+    expect(result.ok).toBe(true);
+    expect(result.checks).toEqual(expect.arrayContaining([expect.objectContaining({ name: "Telegram API", status: "pass" }), expect.objectContaining({ name: "Pending updates", status: "pass" })]));
+    expect(fetchMock).toHaveBeenCalled();
   });
 
   it("omits secret_token when neither database nor environment provides one", async () => {
