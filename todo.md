@@ -19,4 +19,6 @@
 - [x] Persist webhook deliveries, update identifiers, processing status, and webhook diagnostics in the database.
 - [x] Add backend procedures for webhook registration, verification, and recent delivery inspection.
 - [x] Wire webhook registration and verification controls into Configuration and Troubleshoot screens.
-- [ ] Add unit tests for webhook authentication, update acceptance, duplicate update handling, and diagnostics.
+- [x] Add unit tests for webhook authentication, update acceptance, duplicate update handling, and diagnostics.
+- [x] Add route-level tests for valid Telegram webhook acceptance, invalid-secret rejection, missing update_id, and duplicate delivery handling.
+- [x] Add tests for webhook diagnostics procedures or delivery-inspection persistence helpers.

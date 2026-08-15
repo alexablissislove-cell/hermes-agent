@@ -9,6 +9,14 @@ export function updateIdFrom(body: unknown) {
   return typeof value === "number" && Number.isInteger(value) && value >= 0 ? value : undefined;
 }
 
+export function isWebhookSecretValid(expectedSecret: string, receivedSecret: string) {
+  return !expectedSecret || expectedSecret === receivedSecret;
+}
+
+export function isDuplicateUpdate(existingUpdateIds: number[], updateId: number) {
+  return existingUpdateIds.includes(updateId);
+}
+
 export function registerTelegramWebhook(app: Express) {
   app.post("/api/webhooks/telegram", async (req: Request, res: Response) => {
     const config = await getGatewayConfig();
@@ -19,7 +27,7 @@ export function registerTelegramWebhook(app: Express) {
     }
     const expectedSecret = config.webhookSecret?.trim();
     const receivedSecret = req.header("X-Telegram-Bot-Api-Secret-Token") ?? "";
-    if (expectedSecret && receivedSecret !== expectedSecret) {
+    if (!isWebhookSecretValid(expectedSecret ?? "", receivedSecret)) {
       await appendGatewayLog({ level: "warn", message: "Rejected Telegram webhook: invalid secret token", context: { updateId } });
       res.status(401).json({ ok: false, error: "Invalid webhook secret" });
       return;
@@ -37,8 +45,8 @@ export function registerTelegramWebhook(app: Express) {
     try {
       await db.insert(webhookDeliveries).values({ updateId, status: "accepted", payload: req.body as Record<string, unknown> });
     } catch {
-      const existing = await db.select({ id: webhookDeliveries.id }).from(webhookDeliveries).where(eq(webhookDeliveries.updateId, updateId)).limit(1);
-      if (existing.length > 0) {
+      const existing = await db.select({ updateId: webhookDeliveries.updateId }).from(webhookDeliveries).where(eq(webhookDeliveries.updateId, updateId)).limit(1);
+      if (isDuplicateUpdate(existing.map(row => row.updateId), updateId)) {
         await appendGatewayLog({ level: "debug", message: "Ignored duplicate Telegram update", context: { updateId } });
         res.status(200).json({ ok: true, duplicate: true });
         return;
