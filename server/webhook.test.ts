@@ -4,9 +4,11 @@ const mocks = vi.hoisted(() => ({
   getGatewayConfig: vi.fn(),
   getDb: vi.fn(),
   appendGatewayLog: vi.fn().mockResolvedValue(undefined),
+  transitionWebhookDelivery: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock("./db", () => mocks);
+vi.mock("./telegramGateway", () => ({ processTelegramUpdate: vi.fn().mockResolvedValue({ ok: true }) }));
 
 import { isDuplicateUpdate, isWebhookSecretValid, registerTelegramWebhook, updateIdFrom } from "./webhook";
 
@@ -65,7 +67,7 @@ describe("POST /api/webhooks/telegram", () => {
     const res = response();
     await createRoute()({ body: { update_id: 42, message: { text: "hello" } }, header: () => "hermes-secret" }, res);
     expect(res.state.statusCode).toBe(200);
-    expect(res.state.body).toEqual({ ok: true, updateId: 42 });
+    expect(res.state.body).toEqual({ ok: true, updateId: 42, processed: true });
   });
 
   it("rejects an invalid secret before persistence", async () => {

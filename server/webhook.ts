@@ -2,6 +2,7 @@ import type { Express, Request, Response } from "express";
 import { eq } from "drizzle-orm";
 import { webhookDeliveries } from "../drizzle/schema";
 import { appendGatewayLog, getDb, getGatewayConfig } from "./db";
+import { processTelegramUpdate } from "./telegramGateway";
 import { ENV } from "./_core/env";
 
 export function updateIdFrom(body: unknown) {
@@ -64,7 +65,7 @@ export function registerTelegramWebhook(app: Express) {
       return;
     }
     try {
-      await db.insert(webhookDeliveries).values({ updateId, status: "accepted", payload: req.body as Record<string, unknown> });
+      await db.insert(webhookDeliveries).values({ updateId, status: "received", payload: req.body as Record<string, unknown> });
     } catch {
       const existing = await db.select({ updateId: webhookDeliveries.updateId }).from(webhookDeliveries).where(eq(webhookDeliveries.updateId, updateId)).limit(1);
       if (isDuplicateUpdate(existing.map(row => row.updateId), updateId)) {
@@ -77,6 +78,7 @@ export function registerTelegramWebhook(app: Express) {
       return;
     }
     await appendGatewayLog({ level: "info", message: "Accepted Telegram webhook update", context: { updateId } });
-    res.status(200).json({ ok: true, updateId });
+    const processing = await processTelegramUpdate(updateId, req.body as Record<string, unknown>);
+    res.status(!processing.ok && processing.retryable ? 503 : 200).json({ ok: true, updateId, processed: processing.ok, ...(processing.ok ? {} : { retryable: processing.retryable }) });
   });
 }

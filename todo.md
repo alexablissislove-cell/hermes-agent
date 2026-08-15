@@ -50,3 +50,12 @@
 - [x] Add owner-facing replay controls to the Hermes webhook diagnostics UI.
 - [x] Surface redacted webhook delivery diagnostics and persisted error context in the UI.
 - [x] Add end-to-end mocked tests for replay mutation and webhook health procedure output.
+
+- [x] Audit and harden managed Bright Data, OpenAI, and Telegram runtime integration paths using current Context7 guidance and Serena semantic inspection
+- [ ] Verify live webhook registration, proxy reachability, Telegram update handling, and OpenAI fallback behavior
+- [x] Add or update tests for any reliability fixes discovered during the audit
+
+> Imported user requirements from `/home/ubuntu/upload/pasted_content_5.txt`: adaptive execution should observe current state, verify actual results, preserve evidence, and reroute after tool/API failures without fabricating success.
+
+- [ ] Apply Jugg_King execution requirements from `/home/ubuntu/upload/pasted_content_6.txt`: work through failure routes, verify consequential side effects, preserve state, and stop only at completion or a proven blocker
+- [ ] Reconcile the live Telegram webhook 500 reported by getWebhookInfo and verify one real update delivery end to end
