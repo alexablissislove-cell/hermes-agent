@@ -57,5 +57,17 @@
 
 > Imported user requirements from `/home/ubuntu/upload/pasted_content_5.txt`: adaptive execution should observe current state, verify actual results, preserve evidence, and reroute after tool/API failures without fabricating success.
 
-- [ ] Apply Jugg_King execution requirements from `/home/ubuntu/upload/pasted_content_6.txt`: work through failure routes, verify consequential side effects, preserve state, and stop only at completion or a proven blocker
+- [x] Apply Jugg_King execution requirements from `/home/ubuntu/upload/pasted_content_6.txt`: work through failure routes, verify consequential side effects, preserve state, and stop only at completion or a proven blocker
 - [ ] Reconcile the live Telegram webhook 500 reported by getWebhookInfo and verify one real update delivery end to end
+
+- [x] Inventory and remediate critical/high dependency vulnerabilities with compatible upgrades or overrides
+- [x] Re-run dependency audit, TypeScript, tests, and production build after hardening
+
+- [x] Clean the existing node_modules tree and reinstall Hermes dependencies with npm
+- [x] Validate npm-installed dependencies with TypeScript and project checks (TypeScript, full tests, audit, and build pass; live API check is explicit opt-in)
+
+- [x] Audit npm manifest, lockfile, installed dependency tree, validation results, and remaining Telegram network timeout
+
+- [x] Upgrade drizzle-orm to the patched 0.45.2 release and resolve any compatibility changes
+- [x] Harden the live Telegram credential test to use the managed transport and eliminate the direct-network timeout
+- [x] Re-run npm install, audit, full tests, and production build after the fixes

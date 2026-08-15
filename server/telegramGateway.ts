@@ -29,7 +29,7 @@ function requestInit(init: RequestInit = {}): RequestInit & { dispatcher?: Proxy
   return dispatcher ? { ...init, dispatcher } : init;
 }
 
-async function telegramRequest<T>(botToken: string, method: string, payload?: Record<string, unknown>, timeoutMs = 10000): Promise<{ response: Response; body: TelegramApiResponse<T> }> {
+export async function telegramRequest<T>(botToken: string, method: string, payload?: Record<string, unknown>, timeoutMs = 10000): Promise<{ response: Response; body: TelegramApiResponse<T> }> {
   let lastError: unknown;
   for (const useProxy of [true, false]) {
     const controller = new AbortController();
@@ -69,17 +69,21 @@ function contentToText(content: unknown) {
   }).join("\n").trim();
 }
 
+async function invokeHermesModel(prompt: string) {
+  const response = await invokeLLM({
+    messages: [
+      { role: "system", content: "You are Hermes, a concise Telegram gateway assistant. Reply with plain text, no Markdown tables." },
+      { role: "user", content: prompt },
+    ],
+  });
+  const text = contentToText(response.choices[0]?.message?.content);
+  if (!text) throw new Error("Managed LLM returned an empty response");
+  return text;
+}
+
 async function callOpenAI(prompt: string, timeoutMs: number) {
   const key = getManagedOpenAIKey();
-  if (!key) {
-    const response = await invokeLLM({
-      messages: [
-        { role: "system", content: "You are Hermes, a concise Telegram gateway assistant. Reply with plain text, no Markdown tables." },
-        { role: "user", content: prompt },
-      ],
-    });
-    return contentToText(response.choices[0]?.message?.content);
-  }
+  if (!key) return invokeHermesModel(prompt);
 
   const baseUrl = (process.env.OPENAI_API_BASE_URL || process.env.OPENAI_API_BASE || "https://api.openai.com/v1").replace(/\/+$/, "");
   const controller = new AbortController();
@@ -117,7 +121,14 @@ async function callOpenAI(prompt: string, timeoutMs: number) {
       });
     }
     const body = await response.json().catch(() => ({})) as { choices?: Array<{ message?: { content?: string } }>; error?: { message?: string } };
-    if (!response.ok) throw new Error(body.error?.message || `OpenAI request failed with HTTP ${response.status}`);
+    if (!response.ok) {
+      const details = body.error?.message || `OpenAI request failed with HTTP ${response.status}`;
+      if (/credit|quota|billing|rate.?limit|too many requests|429|401|403/i.test(details)) {
+        await appendGatewayLog({ level: "warn", message: "Raw OpenAI route unavailable; using managed Hermes model fallback", context: { status: response.status, reason: details.slice(0, 160) } });
+        return invokeHermesModel(prompt);
+      }
+      throw new Error(details);
+    }
     const text = contentToText(body.choices?.[0]?.message?.content);
     if (!text) throw new Error("OpenAI returned an empty response");
     return text;
