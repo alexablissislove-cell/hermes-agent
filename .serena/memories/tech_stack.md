@@ -1,0 +1,1 @@
+Frontend: React 19 with Vite, TypeScript, Tailwind CSS 4, shadcn/ui-style components, lucide-react, wouter, TanStack Query via tRPC. Backend: Express 4, tRPC 11, Drizzle ORM with MySQL/TiDB, Manus OAuth. Package manager: pnpm. Tests: Vitest. Runtime entrypoint: server/_core/index.ts. Build: Vite frontend plus esbuild server bundle.

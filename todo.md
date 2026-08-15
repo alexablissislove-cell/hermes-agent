@@ -1,0 +1,22 @@
+# Project TODO
+
+- [x] Build dark responsive Hermes Agent operator shell with sidebar navigation for Overview, Configuration, Security, Monitor, Test, and Troubleshoot.
+- [x] Add owner-only authentication gating for viewing and modifying gateway settings.
+- [x] Add database schema and persistence for gateway configuration values.
+- [x] Add database schema and persistence for security rules, API keys, IP allowlists, token rotation metadata, and access-control rules.
+- [x] Add database schema and persistence for historical gateway metrics and recent errors.
+- [x] Implement dashboard overview cards for uptime, message throughput, active connections, and error rate.
+- [x] Implement gateway configuration panel for bot token, webhook URL, allowed chat IDs, rate limits, and gateway parameters.
+- [x] Implement security settings panel for API keys, IP allowlists, token rotation, and access-control rules.
+- [x] Implement live monitoring view with real-time log stream, messages-per-second, latency, error-count charts, and alert thresholds.
+- [x] Implement message testing console with Telegram message composition, send action, and raw request/response inspection.
+- [x] Implement troubleshooting panel with connection diagnostics, webhook verification, health-check runner, and recent error viewer.
+- [x] Add backend procedures and real-time telemetry support for dashboard, configuration, security, monitoring, testing, and troubleshooting workflows.
+- [x] Add unit tests for owner authorization, persistence helpers, gateway procedures, and monitoring/test-console contracts.
+- [x] Validate desktop and mobile layouts, loading/error/empty states, and production build readiness.
+- [x] Verify current Telegram webhook behavior, secret-token headers, setWebhook, getWebhookInfo, and update handling through Bright Data sources.
+- [x] Add a secure Telegram webhook endpoint with secret-token validation and owner-safe event logging.
+- [x] Persist webhook deliveries, update identifiers, processing status, and webhook diagnostics in the database.
+- [x] Add backend procedures for webhook registration, verification, and recent delivery inspection.
+- [x] Wire webhook registration and verification controls into Configuration and Troubleshoot screens.
+- [ ] Add unit tests for webhook authentication, update acceptance, duplicate update handling, and diagnostics.

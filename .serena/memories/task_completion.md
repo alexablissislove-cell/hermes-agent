@@ -1,0 +1,1 @@
+Before delivery, run pnpm check, pnpm test, and pnpm build. For UI changes, use the managed preview screenshot workflow at desktop and mobile sizes. For runtime issues, inspect .manus-logs/devserver.log and browserConsole.log. Before a checkpoint, read todo.md and ensure all completed items are marked [x].
