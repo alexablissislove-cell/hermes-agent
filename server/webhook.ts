@@ -2,6 +2,7 @@ import type { Express, Request, Response } from "express";
 import { eq } from "drizzle-orm";
 import { webhookDeliveries } from "../drizzle/schema";
 import { appendGatewayLog, getDb, getGatewayConfig } from "./db";
+import { ENV } from "./_core/env";
 
 export function updateIdFrom(body: unknown) {
   if (!body || typeof body !== "object") return undefined;
@@ -21,11 +22,12 @@ export function registerTelegramWebhook(app: Express) {
   app.post("/api/webhooks/telegram", async (req: Request, res: Response) => {
     const config = await getGatewayConfig();
     const updateId = updateIdFrom(req.body);
-    if (!config?.enabled || !config.botToken) {
+    const botToken = config?.botToken?.trim() || ENV.telegramBotToken;
+    if (!config?.enabled || !botToken) {
       res.status(503).json({ ok: false, error: "Gateway is not enabled or configured" });
       return;
     }
-    const expectedSecret = config.webhookSecret?.trim();
+    const expectedSecret = config?.webhookSecret?.trim() || ENV.telegramWebhookSecret;
     const receivedSecret = req.header("X-Telegram-Bot-Api-Secret-Token") ?? "";
     if (!isWebhookSecretValid(expectedSecret ?? "", receivedSecret)) {
       await appendGatewayLog({ level: "warn", message: "Rejected Telegram webhook: invalid secret token", context: { updateId } });

@@ -72,7 +72,12 @@ export const webhookDeliveries = mysqlTable("webhook_deliveries", {
   id: int("id").autoincrement().primaryKey(),
   updateId: int("updateId").notNull().unique(),
   receivedAt: timestamp("receivedAt").defaultNow().notNull(),
-  status: mysqlEnum("status", ["accepted", "duplicate", "rejected", "failed"]).notNull(),
+  status: mysqlEnum("status", ["received", "accepted", "processing", "processed", "retryable", "duplicate", "rejected", "failed", "dead_letter"]).notNull(),
+  attemptCount: int("attemptCount").notNull().default(0),
+  lastAttemptAt: timestamp("lastAttemptAt"),
+  processingStartedAt: timestamp("processingStartedAt"),
+  processedAt: timestamp("processedAt"),
+  nextAttemptAt: timestamp("nextAttemptAt"),
   payload: json("payload").$type<Record<string, unknown>>().notNull(),
   errorMessage: text("errorMessage"),
 });

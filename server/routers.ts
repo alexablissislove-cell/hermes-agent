@@ -5,6 +5,7 @@ import { systemRouter } from "./_core/systemRouter";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import { TRPCError } from "@trpc/server";
 import { ENV } from "./_core/env";
+import { verifyOpenAIConnection } from "./openai";
 import { appendGatewayLog, getAlertThresholds, getGatewayConfig, getLatestMetrics, getRecentLogs, getSecurityRules, getWebhookDeliveries, saveAlertThresholds, saveGatewayConfig, saveSecurityRules } from "./db";
 
 const gatewayInput = z.object({
@@ -36,6 +37,18 @@ const ownerProcedure = protectedProcedure.use(({ ctx, next }) => {
   return next();
 });
 
+function resolveTelegramBotToken(config: Awaited<ReturnType<typeof getGatewayConfig>>) {
+  return config?.botToken?.trim() || ENV.telegramBotToken;
+}
+
+export function buildWebhookRegistrationPayload(config: NonNullable<Awaited<ReturnType<typeof getGatewayConfig>>>) {
+  return {
+    url: config.webhookUrl,
+    ...(config.webhookSecret || ENV.telegramWebhookSecret ? { secret_token: config.webhookSecret || ENV.telegramWebhookSecret } : {}),
+    allowed_updates: ["message", "edited_message", "callback_query"],
+  };
+}
+
 export const appRouter = router({
   system: systemRouter,
   auth: router({
@@ -51,7 +64,7 @@ export const appRouter = router({
       const [config, metrics, logs] = await Promise.all([getGatewayConfig(), getLatestMetrics(1), getRecentLogs(5)]);
       const latest = metrics[0];
       return {
-        gateway: { enabled: config?.enabled ?? false, configured: Boolean(config?.botToken), webhookUrl: config?.webhookUrl ?? "" },
+        gateway: { enabled: config?.enabled ?? false, configured: Boolean(resolveTelegramBotToken(config)), webhookUrl: config?.webhookUrl ?? "" },
         metrics: latest ?? { uptimeSeconds: 0, messagesPerSecond: 0, activeConnections: 0, latencyMs: 0, errorRate: 0, errorCount: 0 },
         recentLogs: logs,
       };
@@ -81,13 +94,14 @@ export const appRouter = router({
       send: ownerProcedure.input(z.object({ chatId: z.string().min(1), text: z.string().min(1).max(4096), parseMode: z.enum(["plain", "markdown", "html"]) })).mutation(async ({ input }) => {
         const config = await getGatewayConfig();
         const payload = { chat_id: input.chatId, text: input.text, ...(input.parseMode === "plain" ? {} : { parse_mode: input.parseMode === "markdown" ? "MarkdownV2" : "HTML" }) };
-        if (!config?.botToken) {
+        const botToken = resolveTelegramBotToken(config);
+        if (!botToken) {
           return { ok: false, status: 412, request: payload, response: { ok: false, description: "Configure a bot token before sending a live message." } };
         }
         const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), config.requestTimeoutMs);
+        const timer = setTimeout(() => controller.abort(), config?.requestTimeoutMs ?? 10000);
         try {
-          const response = await fetch(`https://api.telegram.org/bot${config.botToken}/sendMessage`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload), signal: controller.signal });
+          const response = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload), signal: controller.signal });
           const body = await response.json().catch(() => ({ ok: false, description: "Non-JSON response" }));
           await appendGatewayLog({ level: response.ok ? "info" : "error", message: response.ok ? "Test message sent" : "Test message failed", context: { chatId: input.chatId, status: response.status } });
           return { ok: response.ok, status: response.status, request: payload, response: body };
@@ -100,25 +114,30 @@ export const appRouter = router({
       deliveries: ownerProcedure.query(async () => getWebhookDeliveries(50)),
       register: ownerProcedure.mutation(async () => {
         const config = await getGatewayConfig();
-        if (!config?.botToken || !config.webhookUrl) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Configure the bot token and webhook URL first." });
-        const response = await fetch(`https://api.telegram.org/bot${config.botToken}/setWebhook`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ url: config.webhookUrl, secret_token: config.webhookSecret || undefined, allowed_updates: ["message", "edited_message", "callback_query"] }) });
+        const botToken = resolveTelegramBotToken(config);
+        if (!botToken || !config?.webhookUrl) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Configure the bot token and webhook URL first." });
+        const response = await fetch(`https://api.telegram.org/bot${botToken}/setWebhook`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(buildWebhookRegistrationPayload(config)) });
         const body = await response.json().catch(() => ({ ok: false, description: "Non-JSON response" }));
         await appendGatewayLog({ level: response.ok ? "info" : "error", message: response.ok ? "Telegram webhook registration completed" : "Telegram webhook registration failed", context: { status: response.status } });
         return { status: response.status, ...body };
       }),
       verify: ownerProcedure.mutation(async () => {
         const config = await getGatewayConfig();
-        if (!config?.botToken) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Configure the bot token first." });
-        const response = await fetch(`https://api.telegram.org/bot${config.botToken}/getWebhookInfo`);
+        const botToken = resolveTelegramBotToken(config);
+        if (!botToken) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Configure the bot token first." });
+        const response = await fetch(`https://api.telegram.org/bot${botToken}/getWebhookInfo`);
         const body = await response.json().catch(() => ({ ok: false, description: "Non-JSON response" }));
         return { status: response.status, ...body };
       }),
+    }),
+    openai: router({
+      verify: ownerProcedure.mutation(async () => verifyOpenAIConnection()),
     }),
     troubleshoot: router({
       run: ownerProcedure.mutation(async () => {
         const config = await getGatewayConfig();
         const checks = [
-          { name: "Configuration", status: config?.botToken ? "pass" : "warn", detail: config?.botToken ? "Bot token is configured." : "Bot token is not configured." },
+          { name: "Configuration", status: resolveTelegramBotToken(config) ? "pass" : "warn", detail: resolveTelegramBotToken(config) ? "Bot token is configured server-side." : "Bot token is not configured." },
           { name: "Webhook URL", status: config?.webhookUrl ? "pass" : "warn", detail: config?.webhookUrl ? "Webhook URL is present." : "No webhook URL configured." },
           { name: "Database", status: "pass", detail: "Control-plane persistence is available." },
         ] as const;

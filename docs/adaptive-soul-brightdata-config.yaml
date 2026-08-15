@@ -1,0 +1,148 @@
+# Example only: keep credentials in environment variables or a secret manager.
+# Bright Data's current configuration model uses zone access details plus
+# host, port, username, and password. Username parameters can control routing.
+
+identity:
+  name: Jugg_King
+  soul_file: ./SOUL.md
+  mode: adaptive
+  loop:
+    stages:
+      - observe
+      - orient
+      - work
+      - verify
+      - learn
+      - adapt
+      - continue
+    inspect_live_state_before_action: true
+    invalidate_stale_assumptions_after_timeout: true
+    verify_external_side_effects: true
+    preserve_state_on_failure: true
+
+proxy:
+  provider: brightdata
+  enabled: ${BRIGHTDATA_ENABLED:-false}
+  protocol: http
+  host: ${BRIGHTDATA_PROXY_HOST}
+  port: ${BRIGHTDATA_PROXY_PORT}
+  zone: ${BRIGHTDATA_ZONE}
+  username: ${BRIGHTDATA_USERNAME}
+  password: ${BRIGHTDATA_PASSWORD}
+  routing:
+    # Bright Data username parameters should be composed by the adapter,
+    # rather than concatenated in application code.
+    country: ${BRIGHTDATA_COUNTRY:-us}
+    target_ip: ${BRIGHTDATA_TARGET_IP:-176.100.143.130}
+    session: ${BRIGHTDATA_SESSION_ID}
+    session_policy: sticky_for_attempt
+    rotate_after_attempts: 3
+  timeouts:
+    connect_ms: 5000
+    request_ms: 30000
+    total_ms: 45000
+    classify_connect_timeout_as: retryable
+    classify_request_timeout_as: retryable
+  retries:
+    enabled: true
+    max_attempts: 3
+    backoff: exponential
+    base_delay_ms: 1000
+    max_delay_ms: 30000
+    jitter_ratio: 0.25
+    honor_retry_after_header: true
+    retryable_status_codes: [408, 425, 429, 500, 502, 503, 504]
+    retryable_proxy_errors:
+      - connect_timeout
+      - request_timeout
+      - proxy_connection_reset
+      - upstream_temporary_failure
+  circuit_breaker:
+    enabled: true
+    failure_window_seconds: 60
+    open_after_failures: 5
+    half_open_after_seconds: 30
+    close_after_successes: 2
+    probe_timeout_ms: 5000
+  safety:
+    redact_credentials_in_logs: true
+    never_proxy_telegram_webhook_ingress: true
+    allow_only_https_targets: true
+
+webhook:
+  provider: telegram
+  public_path: /api/webhooks/telegram
+  secret_header: X-Telegram-Bot-Api-Secret-Token
+  require_secret_header: true
+  max_attempts: 3
+  retry_backoff_seconds: [5, 30, 300]
+  lifecycle_states:
+    - received
+    - accepted
+    - processing
+    - processed
+    - retryable
+    - duplicate
+    - rejected
+    - failed
+    - dead_letter
+  idempotency_key: update_id
+  acknowledge_only_after_durable_persistence: true
+  replay:
+    enabled: true
+    owner_only: true
+    require_duplicate_check: true
+
+routing_policy:
+  default_route: direct
+  alternate_route: brightdata_proxy
+  switch_when:
+    - direct_request_timeout
+    - transient_upstream_error
+    - proxy_connection_timeout
+    - upstream_rate_limited
+    - proxy_health_check_passes
+  do_not_switch_when:
+    - invalid_credentials
+    - invalid_webhook_secret
+    - malformed_update
+    - authorization_failure
+  rate_limit:
+    respect_retry_after: true
+    default_retry_after_seconds: 30
+    max_retry_after_seconds: 900
+    add_jitter_seconds: 5
+    pause_route_when_exhausted: true
+    never_retry_non_idempotent_side_effect_without_key: true
+  fallback:
+    enabled: true
+    order: [direct, brightdata_proxy, alternate_brightdata_session]
+    require_health_probe_before_switch: true
+    max_route_switches_per_operation: 2
+    stop_after_all_routes_exhausted: true
+    preserve_original_error: true
+    mark_outcome_unknown_on_timeout: true
+    never_claim_success_without_verified_response: true
+  after_route_change:
+    verify_result: true
+    record_route_and_reason: true
+    preserve_original_error: true
+
+telemetry:
+  record:
+    - route
+    - proxy_session
+    - attempt_count
+    - latency_ms
+    - upstream_status
+    - webhook_status
+    - last_error_message
+    - retry_after_seconds
+    - route_switch_reason
+    - circuit_state
+    - outcome_verification
+  redact:
+    - bot_token
+    - brightdata_password
+    - raw_authorization_headers
+    - message_text_when_sensitive

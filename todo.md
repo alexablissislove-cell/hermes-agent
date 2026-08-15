@@ -22,3 +22,28 @@
 - [x] Add unit tests for webhook authentication, update acceptance, duplicate update handling, and diagnostics.
 - [x] Add route-level tests for valid Telegram webhook acceptance, invalid-secret rejection, missing update_id, and duplicate delivery handling.
 - [x] Add tests for webhook diagnostics procedures or delivery-inspection persistence helpers.
+- [ ] Add explicit webhook delivery lifecycle states, attempt counters, and lifecycle timestamps to persistent storage.
+- [ ] Add owner-only replay-safe recovery controls for failed webhook deliveries.
+- [ ] Add webhook delivery detail diagnostics with redacted payload metadata and upstream error context.
+- [ ] Add webhook drift and delivery-health checks using Telegram webhook status fields.
+- [ ] Add tests for lifecycle transitions, replay idempotency, and delivery-health diagnostics.
+- [x] Verify Bright Data timeout, retry, rate-limit, and proxy-session guidance for adaptive routing.
+- [x] Add explicit proxy timeout classification and bounded retry/backoff configuration.
+- [x] Add upstream rate-limit handling with Retry-After support, jitter, and circuit-breaker behavior.
+- [x] Add secure fallback routing, evidence-preserving logs, and no-fabricated-success rules to the configuration.
+- [ ] Use Bright Data to discover candidate Telegram gateway repositories relevant to Hermes webhook routing.
+- [ ] Inspect candidate GitHub repositories for license, maintenance, webhook, retry, and security fit.
+- [ ] Map the verified candidate integration path to Hermes Agent without executing untrusted repository code.
+- [x] Verify provided Telegram and Bright Data credentials are present through secure environment configuration without revealing values.
+- [x] Validate server-only credential usage, redaction, and missing-secret behavior with tests.
+- [x] Add missing/invalid Bright Data environment tests without exposing command-line credentials.
+- [x] Verify secure Telegram credential mapping into server-only runtime keys and webhook secret handling.
+- [x] Refactor proxy smoke-test failure handling so credentials never appear in assertion output.
+- [x] Add Bright Data invalid-port and partial-configuration tests with fail-closed behavior.
+- [x] Map a managed Telegram webhook secret environment key into server-only runtime handling.
+- [x] Replace raw credential-bearing curl invocation with sanitized HTTP proxy validation.
+- [x] Apply the managed Telegram webhook secret fallback during setWebhook registration and test it.
+- [x] Remove Bright Data username/password from proxy-process arguments entirely.
+- [x] Add router-level tests for setWebhook using the managed webhook secret fallback and omitting the secret when none is configured.
+- [x] Add actual hermes.webhook.register mutation tests asserting outgoing setWebhook secret fallback and omission behavior.
+- [x] Wire the managed OpenAI key into a server-only Hermes connectivity procedure and validate it against the models endpoint.
